@@ -21,6 +21,7 @@
   };
 #endif
 
+/*
 #if ((INTERFILTER_MODE != INTERFILTER_NONE) && (FLEXION_MIXING == MIXING_SINCOS))
   RunningMedian sinSamples[NUM_FINGERS] = {
       RunningMedian(INTERFILTER_SAMPLES),
@@ -38,6 +39,7 @@
       RunningMedian(INTERFILTER_SAMPLES)
   };
 #endif
+*/
 
 #define DEFAULT_VREF 1100
 esp_adc_cal_characteristics_t *adc_chars;
@@ -47,6 +49,8 @@ byte selectPins[] = {PINS_MUX_SELECT};
 int maxFingers[2* NUM_FINGERS] = {0,0,0,0,0,0,0,0,0,0};
 int minFingers[2* NUM_FINGERS] = {ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX};
 int maxTravel[2*NUM_FINGERS] = {ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX};
+
+/*
 #if FLEXION_MIXING == MIXING_SINCOS
   int sinMin[NUM_FINGERS] = {ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX};
   int sinMax[NUM_FINGERS] = {0,0,0,0,0};
@@ -59,6 +63,7 @@ int maxTravel[2*NUM_FINGERS] = {ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, ANALOG_MAX, 
 
   int totalOffset1[NUM_FINGERS] = {0,0,0,0,0};
 #endif
+*/
 
 
 bool savedInter = false;
@@ -105,7 +110,7 @@ void setupInputs(){
   #if USING_MULTIPLEXER
   byte selectPins[] = {PINS_MUX_SELECT};
   //pinMode(MUX_INPUT, INPUT);
-  for (int i = 0; i < sizeof(selectPins); i++){
+  for (int i = 0; i < sizeof(selectPins); i++){ //check later to find out what selectPins is for
     pinMode(selectPins[i], OUTPUT);
   }
   #endif
@@ -137,21 +142,25 @@ int readMux(byte pin){
 }
 #endif
 
-int targetSinMin, targetSinMax, targetSinCurrent, targetCosMin, targetCosMax, targetCosCurrent, targetFlexionMin, targetFlexionMax, targetFlexionCurrent, targetMaxTravel, targetProcessed;
+int targetSinMin, targetSinMax, targetSinCurrent, targetCosMin, targetCosMax, targetCosCurrent, targetFlexionMin, targetFlexionMax, targetFlexionCurrent, targetMaxTravel, targetProcessed; //removed cos (only need one trig function)
 void getFingerPositions(bool calibrating, bool reset){
   #if FLEXION_MIXING == MIXING_NONE //no mixing, just linear
-  int rawFingersFlexion[NUM_FINGERS] = {NO_THUMB?0:analogPinRead(PIN_THUMB), analogPinRead(PIN_INDEX), analogPinRead(PIN_MIDDLE), analogPinRead(PIN_RING), analogPinRead(PIN_PINKY)};
-  
+  int rawFingersFlexion[NUM_FINGERS*2] = {NO_THUMB?0:analogPinRead(PIN_THUMB), analogPinRead(PIN_INDEX), analogPinRead(PIN_MIDDLE), analogPinRead(PIN_RING), analogPinRead(PIN_PINKY), NO_THUMB?0:analogPinRead(PIN_THUMB_SECOND), analogPinRead(PIN_INDEX_SECOND), analogPinRead(PIN_MIDDLE_SECOND), analogPinRead(PIN_RING_SECOND), analogPinRead(PIN_PINKY_SECOND)}; //*2 for additonal DOF
+
+  /*
   #elif FLEXION_MIXING == MIXING_SINCOS
-  int rawFingersFlexion[NUM_FINGERS] = {NO_THUMB?0:sinCosMix(PIN_THUMB, PIN_THUMB_SECOND, 0 ), 
+  int rawFingersFlexion[NUM_FINGERS] = {NO_THUMB?0:sinCosMix(PIN_THUMB, PIN_THUMB_SECOND, 0 ),  
                                   sinCosMix(PIN_INDEX, PIN_INDEX_SECOND, 1 ), 
                                   sinCosMix(PIN_MIDDLE,PIN_MIDDLE_SECOND,2 ), 
                                   sinCosMix(PIN_RING,  PIN_RING_SECOND,  3 ), 
                                   sinCosMix(PIN_PINKY, PIN_PINKY_SECOND, 4 )};
 
   #endif
-
-  int rawFingers[2 * NUM_FINGERS];
+  */
+  //dont need no more mixing
+  
+  int rawFingers[3 * NUM_FINGERS];
+  int rawFingers[15]; //in case ^ doesnt work
 
   #if USING_SPLAY
     int rawFingersSplay[NUM_FINGERS] = {NO_THUMB?0:analogPinRead(PIN_THUMB_SPLAY), 
@@ -166,26 +175,28 @@ void getFingerPositions(bool calibrating, bool reset){
     //memcpy(&rawFingers[5], rawFingersSplay, 5); 
 
   for (int i = 0; i < NUM_FINGERS; i++){
-    rawFingers[i] = rawFingersFlexion[i];
-    rawFingers[i+NUM_FINGERS] = rawFingersSplay[i];
+    rawFingers[i] = rawFingersFlexion[i]; 
+    rawFingers[i+NUM_FINGERS] = rawFingersFlexion[i+NUM_FINGERS];
+    rawFingers[i+NUM_FINGERS*2] = rawFingersSplay[i];
+    // 0-4 first, 5-9 second, 10-14 
   }
   
   
   //flip pot values if needed
   #if FLIP_FLEXION
-  for (int i = 0; i < NUM_FINGERS; i++){
+  for (int i = 0; i < 2 * NUM_FINGERS; i++){
     rawFingers[i] = ANALOG_MAX - rawFingers[i];
   }
   #endif
   
   #if FLIP_SPLAY
-  for (int i = NUM_FINGERS; i < 2 * NUM_FINGERS; i++){
+  for (int i = NUM_FINGERS * 2; i < 3 * NUM_FINGERS; i++){
     rawFingers[i] = ANALOG_MAX - rawFingers[i];
   }
   #endif
   
   #if ENABLE_MEDIAN_FILTER
-  for (int i = 0; i < 2 * NUM_FINGERS; i++){
+  for (int i = 0; i < 3 * NUM_FINGERS; i++){
     rmSamples[i].add( rawFingers[i] );
     rawFingers[i] = rmSamples[i].getMedian();
   }
@@ -193,7 +204,7 @@ void getFingerPositions(bool calibrating, bool reset){
 
   //reset max and mins as needed
   if (reset){
-    for (int i = 0; i <2 * NUM_FINGERS; i++){
+    for (int i = 0; i < 3 * NUM_FINGERS; i++){
       #if FLEXION_MIXING == MIXING_SINCOS
       if (i < NUM_FINGERS)
         totalOffset1[i] = 0;
@@ -205,7 +216,7 @@ void getFingerPositions(bool calibrating, bool reset){
   
   //if during the calibration sequence, make sure to update max and mins
   if (calibrating){
-    for (int i = 0; i < 2*NUM_FINGERS; i++){
+    for (int i = 0; i < 2 *NUM_FINGERS; i++){ //this for splay as well or nah
       if (rawFingers[i] > maxFingers[i])
         #if CLAMP_SENSORS
           maxFingers[i] = ( rawFingers[i] <= CLAMP_MAX )? rawFingers[i] : CLAMP_MAX;
@@ -225,7 +236,7 @@ void getFingerPositions(bool calibrating, bool reset){
     }
   }
   
-  for (int i = 0; i<NUM_FINGERS; i++){
+  for (int i = 0; i< 2* NUM_FINGERS; i++){
   if (i == target){
     targetFlexionMin = minFingers[i];
     targetFlexionMax = maxFingers[i];
@@ -310,6 +321,7 @@ bool getButton(byte pin){
   return digitalRead(pin) != HIGH;
 }
 
+/*
 #if FLEXION_MIXING == MIXING_SINCOS
 //mixing
 int sinCosMix(int sinPin, int cosPin, int i){
@@ -331,6 +343,7 @@ int sinCosMix(int sinPin, int cosPin, int i){
     int cosCalib = cosRaw;
   #endif 
 
+  
   if (!savedInter){
     //scaling
     sinMin[i] = min(sinCalib, sinMin[i]);
@@ -368,6 +381,8 @@ int sinCosMix(int sinPin, int cosPin, int i){
   
 }
 #endif
+*/ 
+//whew thats alot of space saved
 
 void saveTravel()
 {
@@ -377,7 +392,7 @@ void saveTravel()
 
   int addr = 0x01;  // Start address for flexion and splay values
 
-  for (int i = 0; i < 2*NUM_FINGERS; i++) {
+  for (int i = 0; i < 3*NUM_FINGERS; i++) {
     int diff = maxFingers[i] - minFingers[i]; // Calculate the difference
     EEPROM.put(addr, diff); // Store the difference into the EEPROM at the current address
     addr += sizeof(int); // Increment the address by 4 because we're storing int values
@@ -388,6 +403,7 @@ void saveTravel()
   loadTravel();
 }
 
+/*
 void saveIntermediate()
 {
   byte flags = EEPROM.read(0x00);
@@ -410,6 +426,8 @@ void saveIntermediate()
   
   EEPROM.commit(); // Ensure changes are written to EEPROM
 }
+*/
+//dont need this anymore
 
 void clearFlags()
 {
@@ -423,11 +441,13 @@ bool isSavedLimits()
   return flags & 0x01;  // Check bit 0
 }
 
+/*
 bool isSavedIntermediate()
 {
   byte flags = EEPROM.read(0x00);
   return flags & 0x02;  // Check bit 1
 }
+*/
 
 void loadTravel()
 {
@@ -442,6 +462,7 @@ void loadTravel()
   }
 }
 
+/*
 void loadIntermediate()
 {
   byte flags = EEPROM.read(0x00);
@@ -464,5 +485,5 @@ void loadIntermediate()
     address += sizeof(int);
   }
 }
-
+*/
 
