@@ -142,7 +142,7 @@ int readMux(byte pin){
 }
 #endif
 
-int targetSinMin, targetSinMax, targetSinCurrent, targetCosMin, targetCosMax, targetCosCurrent, targetFlexionMin, targetFlexionMax, targetFlexionCurrent, targetMaxTravel, targetProcessed; //removed cos (only need one trig function)
+int targetSinMin, targetSinMax, targetSinCurrent, targetFlexionMin, targetFlexionMax, targetFlexionCurrent, targetMaxTravel, targetProcessed; //removed cos (only need one trig function)
 void getFingerPositions(bool calibrating, bool reset){
   #if FLEXION_MIXING == MIXING_NONE //no mixing, just linear
   int rawFingersFlexion[NUM_FINGERS*2] = {NO_THUMB?0:analogPinRead(PIN_THUMB), analogPinRead(PIN_INDEX), analogPinRead(PIN_MIDDLE), analogPinRead(PIN_RING), analogPinRead(PIN_PINKY), NO_THUMB?0:analogPinRead(PIN_THUMB_SECOND), analogPinRead(PIN_INDEX_SECOND), analogPinRead(PIN_MIDDLE_SECOND), analogPinRead(PIN_RING_SECOND), analogPinRead(PIN_PINKY_SECOND)}; //*2 for additonal DOF
