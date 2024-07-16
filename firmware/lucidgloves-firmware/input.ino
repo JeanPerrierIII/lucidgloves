@@ -216,7 +216,7 @@ void getFingerPositions(bool calibrating, bool reset){
   
   //if during the calibration sequence, make sure to update max and mins
   if (calibrating){
-    for (int i = 0; i < 2 *NUM_FINGERS; i++){ //this for splay as well or nah
+    for (int i = 0; i < 3 *NUM_FINGERS; i++){ //this for splay as well or nah -- yes, check line 180
       if (rawFingers[i] > maxFingers[i])
         #if CLAMP_SENSORS
           maxFingers[i] = ( rawFingers[i] <= CLAMP_MAX )? rawFingers[i] : CLAMP_MAX;
@@ -236,7 +236,7 @@ void getFingerPositions(bool calibrating, bool reset){
     }
   }
   
-  for (int i = 0; i< 2* NUM_FINGERS; i++){
+  for (int i = 0; i< 3 * NUM_FINGERS; i++){
   if (i == target){
     targetFlexionMin = minFingers[i];
     targetFlexionMax = maxFingers[i];
